@@ -24,6 +24,9 @@ sentence-transformers = ">=3.2.0,<4"
 ipykernel = ">=7.2.0,<8"
 regex = ">=2026.3.32,<2027"
 tqdm = ">=4.67.3,<5"
+fastapi = ">=0.135.3,<0.136"
+uvicorn = ">=0.42.0,<0.43"
+pymysql = ">=1.1.2,<2"
 
 [pypi-dependencies]
 ollama = ">=0.6.1, <0.7"

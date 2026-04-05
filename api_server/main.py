@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 # Import the database functions we just wrote
-from mysql_connector import search_mysql, fetch_mysql_record
+from mysql_connector import search_mysql, fetch_mysql
 
 app = FastAPI(title="ER-RAG Unified Data API")
 
@@ -14,9 +14,10 @@ class SearchRequest(BaseModel):
     column_to_search: str
     search_term: str
 
+# Ubah FetchRequest menjadi seperti ini:
 class FetchRequest(BaseModel):
     table: str
-    record_id: str
+    conditions: dict
 
 # --- Step 1: The Search Endpoint ---
 @app.post("/api/mysql/search")
@@ -34,20 +35,17 @@ def api_search_mysql(request: SearchRequest):
         
     return {"results": results}
 
-# --- Step 2: The Fetch Endpoint ---
-@app.post("/api/mysql/get_record")
-def api_get_mysql_record(request: FetchRequest):
-    """Endpoint for fetching the full JSON data of a specific entity using its ID."""
+
+
+# Ubah endpoint fetch menjadi seperti ini:
+@app.post("/api/mysql/fetch")
+def api_fetch_mysql_records(request: FetchRequest):
+    """Universal endpoint to fetch records based on multiple conditions."""
+    records = fetch_mysql(table=request.table, conditions=request.conditions)
     
-    record = fetch_mysql_record(
-        table=request.table, 
-        record_id=request.record_id
-    )
-    
-    if not record:
-        raise HTTPException(status_code=404, detail="Record not found")
-        
-    return {"result": record}
+    if not records:
+        return {"results": [], "message": "No records found."}
+    return {"results": records}
 
 # --- Future Endpoints (Placeholders for your other DBs) ---
 @app.post("/api/mongo/get_document")

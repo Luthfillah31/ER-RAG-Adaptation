@@ -19,13 +19,13 @@ def get_db_connection():
 
 def search_mysql(table: str, column: str, search_term: str):
     """
-    Step 1: The Fuzzy Search.
-    Finds up to 5 matching records based on a text search.
+    The Fuzzy Search.
+    Finds up to 10 matching records based on a text search.
     """
     # Note: Table and column names cannot be parameterized normally in PyMySQL.
     # In production, validate that 'table' and 'column' are strictly alphanumeric to prevent injection.
     
-    query = f"SELECT id, {column} FROM {table} WHERE {column} LIKE %s LIMIT 10"
+    query = f"SELECT * FROM {table} WHERE {column} LIKE %s LIMIT 10"
     fuzzy_term = f"%{search_term}%"
     
     try:
@@ -41,22 +41,40 @@ def search_mysql(table: str, column: str, search_term: str):
         if 'connection' in locals() and connection.open:
             connection.close()
 
-def fetch_mysql_record(table: str, record_id: str):
-    """
-    Step 2: The Exact Fetch.
-    Retrieves the entire row of data for a specific ID.
-    """
-    query = f"SELECT * FROM {table} WHERE id = %s"
+def fetch_mysql(table: str, conditions: dict):
+    """Multi-Condition Fetch applying the Logical OR (IN clause) from the paper."""
+    if not conditions:
+        query = f"SELECT * FROM {table} LIMIT 50"
+        values = ()
+    else:
+        where_clauses = []
+        values = []
+        for k, v in conditions.items():
+            # If the value contains commas, it's a Set from the previous GET. Use Logical OR (IN)
+            if "," in str(v):
+                id_list = str(v).split(",")
+                # Creates placeholders like: idDosen IN (%s, %s)
+                placeholders = ", ".join(["%s"] * len(id_list))
+                where_clauses.append(f"{k} IN ({placeholders})")
+                values.extend(id_list)
+            else:
+                # Standard Exact Match
+                where_clauses.append(f"{k} = %s")
+                values.append(v)
+                
+        where_string = " AND ".join(where_clauses)
+        query = f"SELECT * FROM {table} WHERE {where_string}"
+        values = tuple(values)
     
     try:
         connection = get_db_connection()
         with connection.cursor() as cursor:
-            cursor.execute(query, (record_id,))
-            result = cursor.fetchone() # Get the single matching row
-            return result
+            cursor.execute(query, values)
+            results = cursor.fetchall()
+            return results
     except Exception as e:
         print(f"MySQL Fetch Error: {e}")
-        return None
+        return []
     finally:
         if 'connection' in locals() and connection.open:
             connection.close()

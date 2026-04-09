@@ -5,6 +5,7 @@ from typing import Optional
 
 # Import the database functions we just wrote
 from mysql_connector import search_mysql, fetch_mysql
+from mongo_connector import search_mongo, fetch_mongo
 
 app = FastAPI(title="ER-RAG Unified Data API")
 
@@ -35,8 +36,6 @@ def api_search_mysql(request: SearchRequest):
         
     return {"results": results}
 
-
-
 # Ubah endpoint fetch menjadi seperti ini:
 @app.post("/api/mysql/fetch")
 def api_fetch_mysql_records(request: FetchRequest):
@@ -47,8 +46,23 @@ def api_fetch_mysql_records(request: FetchRequest):
         return {"results": [], "message": "No records found."}
     return {"results": records}
 
-# --- Future Endpoints (Placeholders for your other DBs) ---
-@app.post("/api/mongo/get_document")
-def api_get_mongo_document():
-    pass 
-    # You will create mongo_connector.py later and plug it in here!
+# Add these endpoints at the bottom of the file
+@app.post("/api/mongo/search")
+def api_search_mongo(request: SearchRequest):
+    """Universal endpoint to search MongoDB collections."""
+    results = search_mongo(
+        collection=request.table, 
+        column=request.column_to_search, 
+        search_term=request.search_term
+    )
+    if not results:
+        return {"results": [], "message": "No matching documents found in Mongo."}
+    return {"results": results}
+
+@app.post("/api/mongo/fetch")
+def api_fetch_mongo(request: FetchRequest):
+    """Universal endpoint to fetch records based on multiple conditions."""
+    records = fetch_mongo(collection=request.table, conditions=request.conditions)
+    if not records:
+        return {"results": [], "message": "No records found in Mongo."}
+    return {"results": records}

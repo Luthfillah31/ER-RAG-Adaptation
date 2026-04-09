@@ -5,7 +5,7 @@ from models.dummy_model import RAGModel
 bot = RAGModel()
 
 # Ask a question!
-question = "apa saya project yang selama ini dikerjakan pak kemas"
+question = "how many lecturers with doctoral degrees are active"
 print(f"User: {question}\n")
 
 # Run the pipeline

@@ -29,4 +29,21 @@ class CRAG(object):
         result = requests.post(url, json=data)
         return result.json()
         
-    # Later, you will add mongo_fetch, faiss_search, etc. here!
+    def mongo_search(self, collection: str, column: str, search_term: str):
+        url = self.server + '/api/mongo/search'
+        data = {
+            'collection': collection,
+            'column_to_search': column,
+            'search_term': search_term
+        }
+        result = requests.post(url, json=data)
+        return result.json()
+
+    def mongo_fetch(self, collection: str, **kwargs):
+        url = self.server + '/api/mongo/fetch'
+        data = {
+            'collection': collection,
+            'conditions': kwargs 
+        }
+        result = requests.post(url, json=data)
+        return result.json()

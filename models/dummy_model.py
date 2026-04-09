@@ -5,7 +5,7 @@ import re
 # Import the new client we just built
 from models.pycragapi import CRAG 
 from models.Parse import execute_api_chain # We will build this in Step 3!
-from models.prompt_api import MYSQL_SCHEMA
+from models.prompt_api import MYSQL_SCHEMA, MONGO_SCHEMA
 
 class RAGModel:
     def __init__(self):
@@ -43,18 +43,26 @@ class RAGModel:
         system_prompt = f"""You are a strict data routing assistant. Convert the user's query into a strict API command chain.
         
         {MYSQL_SCHEMA}
+
+        {MONGO_SCHEMA}
         
         Available commands:
         1. mysql_search(table="<table_name>", column="<col_name>", search_term="<val>")
-        2. mysql_fetch(table="<table_name>", <col1>="<val1>", <col2>="<val2>", ...)
+        2. mysql_fetch(table="<table_name>", <col1>="<val1>", ...)
+        3. mongo_search(collection="<collection_name>", column="<col_name>", search_term="<val>")
+        4. mongo_fetch(collection="<collection_name>", <col1>="<val1>", ...)
         
         Rules:
         - You MUST use ONLY the table and column names provided in the Schema above.
-        - If the user provides a fuzzy name, use mysql_search.
-        - For mysql_fetch, YOU MUST add as many column arguments as needed to strictly filter the data.
-        - For multi-hop queries, output MULTIPLE commands on separate lines.
-        - To pass data from Step 1 to Step 2, use {{PREVIOUS_columnName}} (e.g., {{PREVIOUS_id}} or {{PREVIOUS_matakuliahID}}). The columnName MUST exactly match a column returned by the previous table.
+        - If the user provides a fuzzy name, use the _search commands.
+        - For _fetch commands, YOU MUST add as many column arguments as needed to strictly filter the data.
+        - For multi-hop queries across databases, output MULTIPLE commands on separate lines.
+        - To pass data from Step 1 to Step 2, use {{PREVIOUS_columnName}} (e.g., {{PREVIOUS_id}}).
         - Respond ONLY with the exact API command string(s). No explanations.
+        
+        Example Multi-Hop Query (Cross-Database):
+        mysql_search(table="dosen", column="nama", search_term="Kemas")
+        mongo_fetch(collection="thesis_documents", idDosen="{{PREVIOUS_id}}")
         
         Example Multi-Hop Query with strict filtering and dynamic joins:
         mysql_search(table="dosen", column="nama", search_term="Kemas")

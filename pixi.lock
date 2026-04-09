@@ -52,6 +52,8 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/email_validator-2.3.0-hd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/exceptiongroup-1.3.1-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/executing-2.2.1-pyhd8ed1ab_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/win-64/faiss-1.9.0-py310hbf8e942_0_cpu.conda
+      - conda: https://conda.anaconda.org/conda-forge/win-64/faiss-cpu-1.9.0-hf9c7e24_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/fastapi-0.135.3-hbd727af_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/fastapi-cli-0.0.23-pyhcf101f3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/fastapi-core-0.135.3-pyhcf101f3_0.conda
@@ -93,6 +95,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/win-64/libdeflate-1.25-h51727cc_0.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/libevent-2.1.12-h3671451_1.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/libexpat-2.7.4-hac47afa_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/win-64/libfaiss-1.9.0-h3a9ed07_0_cpu.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/libffi-3.5.2-h3d046cb_0.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/libfreetype-2.14.3-h57928b3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/libfreetype6-2.14.3-hdbac1cb_0.conda
@@ -162,6 +165,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/pydantic-extra-types-2.11.1-pyhcf101f3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pydantic-settings-2.13.1-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pygments-2.20.0-pyhd8ed1ab_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/win-64/pymongo-4.16.0-py310h73ae2b4_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pymysql-1.1.2-pyhcf101f3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pysocks-1.7.1-pyh09c184e_7.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/python-3.10.20-hc20f281_0_cpython.conda
@@ -1054,6 +1058,37 @@ packages:
   - pkg:pypi/executing?source=hash-mapping
   size: 30753
   timestamp: 1756729456476
+- conda: https://conda.anaconda.org/conda-forge/win-64/faiss-1.9.0-py310hbf8e942_0_cpu.conda
+  sha256: d0db839fbb6f8f0f27096f834459b1cd47532dedcdb904885bac7399b704974f
+  md5: 0b6d8644aac541f26820a8d6bd5f73d4
+  depends:
+  - libfaiss 1.9.0 *_cpu
+  - numpy >=1.22.4,<2.0a0
+  - packaging
+  - python >=3.10,<3.11.0a0
+  - python_abi 3.10.* *_cp310
+  - ucrt >=10.0.20348.0
+  - vc >=14.2,<15
+  - vc14_runtime >=14.29.30139
+  constrains:
+  - faiss-proc =*=cpu
+  - faiss-gpu <0.0a0
+  license: MIT
+  license_family: MIT
+  purls:
+  - pkg:pypi/faiss?source=hash-mapping
+  size: 1107885
+  timestamp: 1734666586808
+- conda: https://conda.anaconda.org/conda-forge/win-64/faiss-cpu-1.9.0-hf9c7e24_0.conda
+  sha256: 37413a18b73848fb498e4cb712ecf8037c933e4090135ffbafff7e0904ae0928
+  md5: c856f7e75ea4629e65dd9549855305e1
+  depends:
+  - faiss 1.9.0 *_cpu
+  license: MIT
+  license_family: MIT
+  purls: []
+  size: 18702
+  timestamp: 1734666949104
 - conda: https://conda.anaconda.org/conda-forge/noarch/fastapi-0.135.3-hbd727af_0.conda
   sha256: 076958a26a7429f0f21324f17d93f005e95e1927d2c0742a84426aa138236af4
   md5: b19a746ffc6b4fd78a571a3229aa7997
@@ -2081,6 +2116,23 @@ packages:
   purls: []
   size: 70323
   timestamp: 1771259521393
+- conda: https://conda.anaconda.org/conda-forge/win-64/libfaiss-1.9.0-h3a9ed07_0_cpu.conda
+  sha256: 8f6e8e63606c0c148a3b03e014ea253ab356879b2fc984ef56842aad8eac7912
+  md5: 810f57081314c7bd4efa53007b1a3ccc
+  depends:
+  - libblas >=3.9.0,<4.0a0
+  - liblapack >=3.9.0,<4.0a0
+  - ucrt >=10.0.20348.0
+  - vc >=14.2,<15
+  - vc14_runtime >=14.29.30139
+  constrains:
+  - faiss-proc =*=cpu
+  - faiss-gpu <0.0a0
+  license: MIT
+  license_family: MIT
+  purls: []
+  size: 1689193
+  timestamp: 1734666193884
 - conda: https://conda.anaconda.org/conda-forge/win-64/libffi-3.5.2-h3d046cb_0.conda
   sha256: 59d01f2dfa8b77491b5888a5ab88ff4e1574c9359f7e229da254cdfe27ddc190
   md5: 720b39f5ec0610457b725eb3f396219a
@@ -3356,6 +3408,22 @@ packages:
   - pkg:pypi/pygments?source=hash-mapping
   size: 893031
   timestamp: 1774796815820
+- conda: https://conda.anaconda.org/conda-forge/win-64/pymongo-4.16.0-py310h73ae2b4_0.conda
+  sha256: f4d8b04e2c593aa5e2931d6ce488fe04253e54d922e4868a550a0c7c0a3febb9
+  md5: ab7e74199238b7716af5aced09b5dedf
+  depends:
+  - dnspython <3.0.0,>=2.6.1
+  - python >=3.10,<3.11.0a0
+  - python_abi 3.10.* *_cp310
+  - ucrt >=10.0.20348.0
+  - vc >=14.3,<15
+  - vc14_runtime >=14.44.35208
+  license: Apache-2.0
+  license_family: APACHE
+  purls:
+  - pkg:pypi/pymongo?source=hash-mapping
+  size: 2300980
+  timestamp: 1768121159970
 - conda: https://conda.anaconda.org/conda-forge/noarch/pymysql-1.1.2-pyhcf101f3_0.conda
   sha256: d3a66e4c2d2641ca96d3fe44609893880e4224471b2d6408321db52ced752861
   md5: 61f563c0fdc31563304deab040b48926

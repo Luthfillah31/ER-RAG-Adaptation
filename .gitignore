@@ -6,4 +6,7 @@ api_responses/*.json# pixi environments
 .env
 models/all-Mini-L6-v2
 models/bge-reranker-v2-m3
-
+faiss_document.json
+id_mapping.json
+vector_database.index
+wikidata.news.json

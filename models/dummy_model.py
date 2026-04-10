@@ -6,7 +6,7 @@ from models.pycragapi import CRAG
 from models.Parse import execute_api_chain
 
 # ONLY import MySQL and your specific Mongo Partnership Schema
-from models.prompt_api import MYSQL_SCHEMA, MONGODB_PARTNERSHIP_SCHEMA
+from models.prompt_api import MYSQL_SCHEMA, MONGODB_PARTNERSHIP_SCHEMA, WIKIBASE_SCHEMA
 
 class RAGModel:
     def __init__(self):
@@ -116,11 +116,30 @@ class RAGModel:
         
         Rules:
         - NEVER use wildcards like "*" or "all" in _fetch commands. OMIT the argument entirely to get all records.
-        - NEVER put a full sentence or question inside a `search_term`. A `search_term` MUST be a short, specific entity name (e.g., "Kemas", "AI").
-        - If the user asks a complex multi-database question, you MUST break it down into multiple steps. Start by fetching the base entities from the first database, then pass {{PREVIOUS_id}} to the second database.
-        - For EXACT/STRUCTURED lookups, use _search or _fetch.
-        - For UNSTRUCTURED TEXT, use faiss_search.
+        - NEVER put a general noun (like "dosen", "project", "paper") inside a `search_term`. `search_term` MUST be a specific proper noun.
+        - If the query asks about "all", "any", or does not mention a specific name (Global Query), DO NOT use _search. Start directly with an empty _fetch.
+        - To pass data from a specific previous step, use {{STEP<N>_columnName}} (e.g., {{STEP1_id}} or {{STEP2_projectID}}). DO NOT use PREVIOUS_id anymore.
         - Respond ONLY with the exact API command string(s). No explanations.
+        - To find Wikibase data for an entity found in MySQL, you MUST cross-reference their NAME first. Use `wikibase_search(search_term="{{STEP<N>_nama}}")` to get their Wikibase Q-ID, then use `wikibase_fetch(subject="{{STEP<M>_entity_id}}")`.
+        
+        ### EXAMPLES OF COMMAND CHAINS ###
+        
+        Query: "Apa saja project yang dikerjakan oleh Kemas?"
+        mysql_search(table="dosen", column="nama", search_term="Kemas")
+        mysql_fetch(table="projectassignment", idDosen="{{STEP1_id}}")
+        mysql_fetch(table="project", id="{{STEP2_projectID}}")
+        
+        Query: "Apakah ada dosen yang papernya berbeda dengan projectnya?"
+        mysql_fetch(table="dosen")
+        mysql_fetch(table="projectassignment", idDosen="{{STEP1_id}}")
+        mysql_fetch(table="project", id="{{STEP2_projectID}}")
+        wikibase_fetch(subject="{{STEP1_id}}")
+        
+        Query: "Berikan saya semua data kontrak pegawai."
+        mysql_fetch(table="employeecontract")
+        
+        Query: "Apa saja kerjasama Telkom dengan Indosat?"
+        faiss_search(query="kerjasama Telkom dengan Indosat")
         """
         
         messages = [
@@ -134,26 +153,39 @@ class RAGModel:
 
     def post_process_data(self, query, raw_context):
         """
-        Stage 3: Post-Processing (ER-RAG Section 4.4)
-        Uses Python f-strings to do math, sorting, or grouping that JSON cannot do natively.
+        Stage 3: Post-Processing
+        Menggunakan skema langsung dari prompt_api.py sebagai referensi (Data Dictionary).
         """
         pp_prompt = f"""You are a data processing agent.
-        Extract useful information from the retrieved JSON data to answer the query.
-        Use Python's "f-string" to embed logic, formatting, or calculations.
+        Extract and format information from the retrieved JSON data.
+        
+        ### DATA DICTIONARY / SCHEMAS ###
+        Use the following schemas to understand the keys, properties, or codes inside the JSON data (especially for Wikibase P-codes):
+        
+        {WIKIBASE_SCHEMA}
+        
+        {MYSQL_SCHEMA}
+        
+        {MONGODB_PARTNERSHIP_SCHEMA}
+        
+        CRITICAL RULE:
+        If the user query requires SEMANTIC COMPARISON (e.g., comparing if a "Project Title" matches a "Paper Title" in meaning), DO NOT write python code to compare them. Python cannot understand meaning.
+        Instead, just use python to GROUP the data neatly by entity. 
+        
+        Example formatting for semantic queries:
+        "Lecturer: Kemas | Projects: [Title 1, Title 2] | Papers: [Paper 1, Paper 2]"
         
         Complete the Return part in this Python template:
         def solve(Data):
             return {{Return}}
             
-        Replace {{Return}} with your generated f-string. NO markdown blocks. Just the f-string.
+        Replace {{Return}} with your generated list comprehension or f-string. NO markdown blocks.
         
         Query: {query}
         Data: {raw_context}
         Return: f\""""
         
-        script = self.llm_output([{"role": "user", "content": pp_prompt}], maxtoken=200)
-        
-        # Clean up any accidental markdown blocks the LLM might add
+        script = self.llm_output([{"role": "user", "content": pp_prompt}], maxtoken=300)
         script = script.replace('```python', '').replace('```', '').strip()
         print(f"[DEBUG Post-Process] Generated script: {script}")
         return script

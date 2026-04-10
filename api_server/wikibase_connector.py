@@ -1,6 +1,7 @@
 # api_server/wikibase_connector.py
 import os
 import requests
+import re
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -32,7 +33,6 @@ class WikibaseClient:
         r = requests.get(self.sparql_url, params={"query": query, "format": "json"})
         return r.json()
 
-# --- ER-RAG Unified API Implementation ---
 
 def get_wb_client():
     return WikibaseClient(
@@ -44,24 +44,36 @@ def get_wb_client():
 
 def search_wikibase(search_term: str):
     """
-    Entity Resolution (Fuzzy Search): Uses MediaWiki API for lightning-fast label matching.
+    Mendukung Batch Search dengan pembersihan gelar akademik.
     """
     try:
         wb = get_wb_client()
-        r = requests.get(wb.api_url, params={
-            "action": "wbsearchentities",
-            "search": search_term,
-            "language": "en",
-            "format": "json"
-        })
-        results = []
-        for item in r.json().get('search', []):
-            results.append({
-                "id": item['id'], # e.g., Q123
-                "label": item.get('label', ''),
-                "description": item.get('description', '')
+        names_to_search = [name.strip() for name in search_term.split(',') if name.strip()]
+        all_results = []
+        
+        for name in names_to_search:
+            clean_name = re.sub(r'^(Dr\.|Prof\.|Bapak\s|Ibu\s|Pak\s|Bu\s)\s*', '', name, flags=re.IGNORECASE)
+            clean_name = re.sub(r',?\s*(Ph\.D\.|M\.Kom\.|S\.T\.|M\.T\.|S\.Si\.|M\.Si\.).*$', '', clean_name, flags=re.IGNORECASE)
+            clean_name = clean_name.strip()
+            
+            r = requests.get(wb.api_url, params={
+                "action": "wbsearchentities",
+                "search": clean_name,
+                "language": "en", 
+                "format": "json",
+                "limit": 1 
             })
-        return results
+            
+            for item in r.json().get('search', []):
+                all_results.append({
+                    "entity_id": item['id'],             
+                    "label": item.get('label', ''),      
+                    "mysql_name": name                   
+                })
+                
+        # PERBAIKAN: Return List langsung, jangan di-wrap dictionary!
+        return all_results 
+
     except Exception as e:
         print(f"Wikibase Search Error: {e}")
         return []
@@ -72,39 +84,39 @@ def fetch_wikibase(conditions: dict):
     """
     try:
         wb = get_wb_client()
-        
-        # If the LLM is fetching properties for specific entities (e.g., subject="Q1,Q2")
         target_entities = conditions.get("subject", "")
         
         if not target_entities:
             return []
             
-        # ER-RAG Logical OR Support (Translates "Q1,Q2" into SPARQL VALUES)
         id_list = target_entities.split(',')
         values_clause = " ".join([f"wd:{qid}" for qid in id_list])
         
-        # Dynamic SPARQL query to get all properties for the requested entities
         query = f"""
         SELECT ?subject ?subjectLabel ?predicate ?object ?objectLabel WHERE {{
           VALUES ?subject {{ {values_clause} }}
+          
+          # Hanya ambil properti direct (wdt:) yang diawali dengan P
           ?subject ?predicate ?object .
+          FILTER(STRSTARTS(STR(?predicate), "http://38.147.122.59/prop/direct/P"))
+          
           SERVICE wikibase:label {{ bd:serviceParam wikibase:language "en,id". }}
-        }} LIMIT 50
+        }} LIMIT 1000
         """
         
         raw_data = wb.sparql_query(query)
         bindings = raw_data.get("results", {}).get("bindings", [])
         
-        # Flatten the complex SPARQL JSON into a clean list of dictionaries for the LLM
         clean_results = []
         for b in bindings:
             clean_results.append({
                 "subject_id": b.get("subject", {}).get("value", "").split("/")[-1],
                 "subject_label": b.get("subjectLabel", {}).get("value", ""),
-                "property_url": b.get("predicate", {}).get("value", ""),
+                "property_url": b.get("predicate", {}).get("value", "").split("/")[-1],
                 "object_value": b.get("objectLabel", {}).get("value", b.get("object", {}).get("value", ""))
             })
             
+        # PERBAIKAN: Return List langsung!
         return clean_results
     except Exception as e:
         print(f"Wikibase Fetch Error: {e}")

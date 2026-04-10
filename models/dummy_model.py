@@ -5,7 +5,7 @@ import re
 # Import the new client we just built
 from models.pycragapi import CRAG 
 from models.Parse import execute_api_chain # We will build this in Step 3!
-from models.prompt_api import MYSQL_SCHEMA, MONGO_SCHEMA
+from models.prompt_api import MYSQL_SCHEMA, MONGODB_PARTNERSHIP_SCHEMA, WIKIBASE_SCHEMA, FAISS_SCHEMA
 
 class RAGModel:
     def __init__(self):
@@ -42,15 +42,24 @@ class RAGModel:
         # We inject the schema directly into the system instructions
         system_prompt = f"""You are a strict data routing assistant. Convert the user's query into a strict API command chain.
         
+        database schema:
+
         {MYSQL_SCHEMA}
 
-        {MONGO_SCHEMA}
+        {MONGODB_PARTNERSHIP_SCHEMA}
+
+        {WIKIBASE_SCHEMA}
+
+        {FAISS_SCHEMA}
         
         Available commands:
         1. mysql_search(table="<table_name>", column="<col_name>", search_term="<val>")
         2. mysql_fetch(table="<table_name>", <col1>="<val1>", ...)
         3. mongo_search(collection="<collection_name>", column="<col_name>", search_term="<val>")
         4. mongo_fetch(collection="<collection_name>", <col1>="<val1>", ...)
+        5. wikibase_search(search_term="<val>")
+        6. wikibase_fetch(subject="<Q_ID_or_PREVIOUS_id>")
+        7. faiss_search(query="<natural_language_sentence>")
         
         Rules:
         - You MUST use ONLY the table and column names provided in the Schema above.

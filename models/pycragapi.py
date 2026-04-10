@@ -47,3 +47,18 @@ class CRAG(object):
         }
         result = requests.post(url, json=data)
         return result.json()
+    
+    def wikibase_search(self, search_term: str):
+        url = self.server + '/api/wikibase/search'
+        result = requests.post(url, json={'table': 'wiki', 'column_to_search': '', 'search_term': search_term})
+        return result.json()
+
+    def wikibase_fetch(self, **kwargs):
+        url = self.server + '/api/wikibase/fetch'
+        result = requests.post(url, json={'conditions': kwargs})
+        return result.json()
+
+    def faiss_search(self, query: str):
+        url = self.server + '/api/faiss/search'
+        result = requests.post(url, json={'query': query})
+        return result.json()

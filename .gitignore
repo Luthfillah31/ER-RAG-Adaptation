@@ -10,3 +10,4 @@ faiss_document.json
 id_mapping.json
 vector_database.index
 wikidata.news.json
+superquery.py

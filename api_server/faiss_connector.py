@@ -33,15 +33,14 @@ except Exception as e:
     print(f"[FAISS] Warning: Models/Data failed to load. {e}")
     index, documents = None, []
 
-def vector_search(query: str, top_k: int = 5):
+def vector_search(query: str, top_k: int = 20):
     """ER-RAG Two-Stage Dense Retrieval for Unstructured Text."""
     if not index or not documents:
         return [{"error": "FAISS database offline."}]
 
     try:
-        # Stage 1: Fast FAISS Retrieval (Top 20)
         query_embedding = embedder.encode([query]).astype('float32')
-        fetch_k = min(20, len(documents))
+        fetch_k = min(50, len(documents))
         _, indices = index.search(query_embedding, fetch_k)
 
         candidates = [documents[idx] for idx in indices[0] if idx != -1 and idx < len(documents)]
@@ -60,3 +59,12 @@ def vector_search(query: str, top_k: int = 5):
     except Exception as e:
         print(f"FAISS Error: {e}")
         return []
+    
+def fetch_faiss_by_id(faiss_id: str):
+    """Mengambil dokumen spesifik berdasarkan faiss_id (Direct Lookup)."""
+    if not documents:
+        return []
+    
+    # Mencari dokumen di dalam list documents yang dimuat dari JSON
+    results = [doc for doc in documents if str(doc.get("faiss_id")) == str(faiss_id)]
+    return results    

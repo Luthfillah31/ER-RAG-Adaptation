@@ -8,7 +8,7 @@ from mysql_connector import search_mysql, fetch_mysql
 from mongo_connector import search_mongo, fetch_mongo
 # Add to imports
 from wikibase_connector import search_wikibase, fetch_wikibase
-from faiss_connector import vector_search
+from faiss_connector import vector_search, fetch_faiss_by_id
 
 app = FastAPI(title="ER-RAG Unified Data API")
 
@@ -28,6 +28,9 @@ class WikibaseFetchRequest(BaseModel):
 
 class VectorRequest(BaseModel):
     query: str
+
+class FaissFetchRequest(BaseModel):
+    conditions: dict
 
 # --- Step 1: The Search Endpoint ---
 @app.post("/api/mysql/search")
@@ -91,4 +94,11 @@ def api_fetch_wikibase(request: WikibaseFetchRequest):
 @app.post("/api/faiss/search")
 def api_vector_search(request: VectorRequest):
     records = vector_search(query=request.query)
+    return {"results": records}
+
+@app.post("/api/faiss/fetch")
+def api_fetch_faiss(request: FaissFetchRequest):
+    # Mengambil faiss_id dari dictionary conditions
+    fid = request.conditions.get("faiss_id")
+    records = fetch_faiss_by_id(fid)
     return {"results": records}

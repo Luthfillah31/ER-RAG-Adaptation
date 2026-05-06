@@ -38,7 +38,11 @@ def fetch_mongo(collection: str, conditions: dict):
                     # Standard Exact Match
                     query[k] = v
                     
-        results = list(col.find(query, {"_id": 0}).limit(50))
+        # --- PERBAIKAN: Inclusive Projection (Hanya ambil partner_name) ---
+        # 1 artinya "ambil ini", 0 artinya "jangan ambil ini"
+        projection = {"_id": 0, "partner_name": 1}
+        
+        results = list(col.find(query, projection).limit(1000))
         return results
     except Exception as e:
         print(f"MongoDB Fetch Error: {e}")

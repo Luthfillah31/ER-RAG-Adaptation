@@ -25,7 +25,7 @@ def search_mysql(table: str, column: str, search_term: str):
     # Note: Table and column names cannot be parameterized normally in PyMySQL.
     # In production, validate that 'table' and 'column' are strictly alphanumeric to prevent injection.
     
-    query = f"SELECT * FROM {table} WHERE {column} LIKE %s LIMIT 10"
+    query = f"SELECT * FROM {table} WHERE {column} LIKE %s limit 50"
     fuzzy_term = f"%{search_term}%"
     
     try:
@@ -44,7 +44,7 @@ def search_mysql(table: str, column: str, search_term: str):
 def fetch_mysql(table: str, conditions: dict):
     """Multi-Condition Fetch applying the Logical OR (IN clause) from the paper."""
     if not conditions:
-        query = f"SELECT * FROM {table} LIMIT 50"
+        query = f"SELECT * FROM {table}"
         values = ()
     else:
         where_clauses = []

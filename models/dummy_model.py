@@ -1,37 +1,74 @@
+import os
 import requests
 import json
 import re
 
 from models.pycragapi import CRAG 
 from models.Parse import execute_api_chain
+from dotenv import load_dotenv 
 
-# ONLY import MySQL and your specific Mongo Partnership Schema
-from models.prompt_api import MYSQL_SCHEMA, MONGODB_PARTNERSHIP_SCHEMA, WIKIBASE_SCHEMA
+load_dotenv()
+
+from models.prompt_api import MYSQL_SCHEMA, MONGODB_PARTNERSHIP_SCHEMA, WIKIBASE_SCHEMA, FAISS_SCHEMA
 
 class RAGModel:
-    def __init__(self):
-        print("-------------------------Configuring API LLM--------------------------")
-        self.ollama_api_url = "http://127.0.0.1:11434/api/generate"
-        self.ollama_model = "deepseek-v3.1:671b-cloud" 
+    def __init__(self, platform="ollama", model=None):
+        """
+        Initializes the RAG Model with support for Ollama (Local) or OpenRouter (Cloud).
+        :param platform: 'ollama' or 'openrouter'
+        :param model: Optional specific model string
+        """
+        print(f"-------------------------Configuring {platform.upper()} LLM--------------------------")
+        self.platform = platform.lower()
         self.api = CRAG()
+        
+        # Platform Settings
+        if self.platform == "ollama":
+            self.api_url = "http://127.0.0.1:11434/api/generate"
+            self.model = model if model else "cogito-2.1:671b-cloud"
+        elif self.platform == "openrouter":
+            self.api_url = "https://openrouter.ai/api/v1/chat/completions"
+            self.api_key = os.getenv("OPENROUTER_API_KEY", "YOUR_OPENROUTER_KEY")
+            self.model = model if model else "qwen/qwen3.5-9b"
+            if not self.api_key:
+                raise ValueError("OPENROUTER_API_KEY not found in environment!")
+        else:
+            raise ValueError("Platform must be 'ollama' or 'openrouter'")
 
     def llm_output(self, messages, maxtoken=512):
-        """Standardized function to talk to your Ollama API."""
-        prompt = "".join([f"{m['role'].upper()}: {m['content']}\n" for m in messages]) + "ASSISTANT:"
-        
-        payload = {
-            "model": self.ollama_model, 
-            "prompt": prompt, 
-            "stream": False, 
-            "options": {"num_predict": maxtoken, "temperature": 0.0}
-        }
-        
+        """Standardized function to talk to Ollama or OpenRouter."""
         try:
-            r = requests.post(self.ollama_api_url, json=payload, timeout=120)
-            r.raise_for_status()
-            return r.json().get("response", "")
+            if self.platform == "ollama":
+                # Ollama /api/generate protocol
+                prompt = "".join([f"{m['role'].upper()}: {m['content']}\n" for m in messages]) + "ASSISTANT:"
+                payload = {
+                    "model": self.model, 
+                    "prompt": prompt, 
+                    "stream": False, 
+                    "options": {"num_predict": maxtoken, "temperature": 0.0}
+                }
+                r = requests.post(self.api_url, json=payload, timeout=120)
+                r.raise_for_status()
+                return r.json().get("response", "")
+
+            elif self.platform == "openrouter":
+                # OpenRouter / OpenAI chat protocol
+                headers = {
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json"
+                }
+                payload = {
+                    "model": self.model,
+                    "messages": messages,
+                    "max_tokens": maxtoken,
+                    "temperature": 0.0
+                }
+                r = requests.post(self.api_url, headers=headers, json=payload, timeout=120)
+                r.raise_for_status()
+                return r.json()['choices'][0]['message']['content']
+
         except Exception as e:
-            print(f"[LLM Error] Failed to reach Ollama: {e}")
+            print(f"[LLM Error] Failed to reach {self.platform.upper()}: {e}")
             return ""
 
     def route_query(self, query):
@@ -44,8 +81,8 @@ class RAGModel:
         
         ### Source Schema Overview:
         - MYSQL: Relational structured data. Contains internal records: dosen (lecturers), employee contracts, matakuliah (courses), meeting minutes, and projects.
-        - FAISS: Unstructured text vector database. Contains the full-text content of our documents (meeting minutes, employee contracts, research papers).
-        - WIKIBASE: Our internal knowledge graph. Contains complex relationships about our lecturers, published papers, patents, and institutional partnerships.
+        - FAISS: Unstructured text vector database. Contains the full-text content of our documents (meeting minutes, employee contracts,partnership news).
+        - WIKIBASE: Our internal knowledge graph. Contains complex relationships about our lecturers, published papers, patents.
         - MONGO: Semi-structured document data. Contains our partnership news collection (web-scraped articles).
         
         ### Instruction:
@@ -54,7 +91,7 @@ class RAGModel:
         Query: {query}
         Databases:"""
         
-        response = self.llm_output([{"role": "user", "content": routing_prompt}], maxtoken=50)
+        response = self.llm_output([{"role": "user", "content": routing_prompt}], maxtoken=100)
         
         # Clean up output: "MYSQL, WIKIBASE" -> ["MYSQL", "WIKIBASE"]
         cleaned_response = response.replace(" ", "").upper()
@@ -79,7 +116,6 @@ class RAGModel:
             ])
             
         if "MONGO" in selected_dbs:
-            # Using the exact variable name from your file
             dynamic_schema += "=== MongoDB Partnership Schema ===\n"
             dynamic_schema += MONGODB_PARTNERSHIP_SCHEMA + "\n"
             available_commands.extend([
@@ -87,7 +123,6 @@ class RAGModel:
                 'mongo_fetch(collection="<collection_name>", <col1>="<val1>", ...)'
             ])
             
-        # Paper Compliance: NO SCHEMA for Wikibase/FAISS. Just instructions.
         if "WIKIBASE" in selected_dbs:
             dynamic_schema += "=== Wikibase Knowledge Graph ===\nContains global factual knowledge. No explicit schema required. Use natural language properties.\n\n"
             available_commands.extend([
@@ -96,12 +131,12 @@ class RAGModel:
             ])
             
         if "FAISS" in selected_dbs:
-            dynamic_schema += "=== FAISS Vector Database ===\nContains unstructured paragraph text. Semantic search only. No schema.\n\n"
+            dynamic_schema += "=== FAISS Vector Database ===\nUse faiss_search for semantic queries or faiss_fetch(faiss_id=\"...\") for specific IDs.\n\n"
             available_commands.extend([
-                'faiss_search(query="<natural_language_sentence>")'
+                'faiss_search(query="<natural_language_sentence>")',
+                'faiss_fetch(faiss_id="<id_from_previous_step>")'
             ])
             
-        # Fallback if router gets confused
         if not available_commands:
             available_commands = ['mysql_search', 'mysql_fetch', 'mongo_search', 'mongo_fetch', 'wikibase_search', 'wikibase_fetch', 'faiss_search']
 
@@ -114,32 +149,59 @@ class RAGModel:
         Available commands:
         {command_list_str}
         
-        Rules:
-        - NEVER use wildcards like "*" or "all" in _fetch commands. OMIT the argument entirely to get all records.
-        - NEVER put a general noun (like "dosen", "project", "paper") inside a `search_term`. `search_term` MUST be a specific proper noun.
-        - If the query asks about "all", "any", or does not mention a specific name (Global Query), DO NOT use _search. Start directly with an empty _fetch.
-        - To pass data from a specific previous step, use {{STEP<N>_columnName}} (e.g., {{STEP1_id}} or {{STEP2_projectID}}). DO NOT use PREVIOUS_id anymore.
-        - Respond ONLY with the exact API command string(s). No explanations.
-        - To find Wikibase data for an entity found in MySQL, you MUST cross-reference their NAME first. Use `wikibase_search(search_term="{{STEP<N>_nama}}")` to get their Wikibase Q-ID, then use `wikibase_fetch(subject="{{STEP<M>_entity_id}}")`.
+        RULES & LOGIC:
+        1. NO WILDCARDS: NEVER use "*" or "all" in _fetch. OMIT arguments entirely to fetch all rows (e.g., mysql_fetch(table="dosen")).
+        2. NO GENERAL NOUNS: `search_term` MUST be a specific proper noun (e.g., "Kemas", NOT "dosen").
+        3. DATA PASSING: Use {{STEP<N>_columnName}} to pass results (e.g., {{STEP1_id}}).
+        4. FAISS USAGE: 
+           - Use `faiss_search` for semantic topic/content discovery.
+           - Use `faiss_fetch` for identity mapping when you already have a `faiss_id` from MySQL or Mongo.
+        5. MONGODB PARTNERSHIPS: 
+           - The collection name is STRICTLY `news`.
+           - ALL records in MongoDB are ALREADY partners of Telkom University. DO NOT filter by `partner_name="Telkom University"`.
+           - To get ALL partners, use exactly: `mongo_fetch(collection="news")` with NO other arguments.
+        6. STRICT FORMATTING: You MUST output ONLY the API commands wrapped inside a ```python ... ``` code block. NO conversational text, NO explanations.
+        BRIDGE PRINCIPLES (Multi-Hop Linkage):
+        You must navigate the schema using these bridges:
+        - [Dosen Bridge]: `dosen.id` <-> `employeecontract.IdDosen`, `mengajar.idDosen`, `projectassignment.idDosen`.
+        - [Project Bridge]: `project.id` <-> `projectassignment.projectID`, `meetingminutes.projectID`.
+        - [Document Bridge]: `faiss_id` (found in MySQL or Mongo) <-> FAISS `document_content`.
+        - [Knowledge Bridge]: `dosen.nama` <-> `wikibase_search` to find `entity_id` (Q-ID) for papers/patents.
+
+        ENTITY RESOLUTION PROTOCOL:
+        - To answer questions about "Person A's paper vs project":
+          1. Get Project data from MySQL (mysql_search -> mysql_fetch assignment -> mysql_fetch project).
+          2. Resolve Person A in Wikibase (wikibase_search(term="{{STEP1_nama}}") -> wikibase_fetch(subject="{{STEP4_entity_id}}")).
+          3. This allows Stage 4 to compare the retrieved metadata.
+
+        STRICT RULES:
+        1. ONLY USE commands listed in the "Available commands" section above.
+        2. IF a command is not in the list, it is FORBIDDEN to use it, even if you see it in examples.
+        3. DO NOT hallucinate commands from other databases that were not selected by the router.
+
+        ### EXAMPLES OF COMMAND CHAINS (For Syntax Reference Only) ###
         
-        ### EXAMPLES OF COMMAND CHAINS ###
-        
-        Query: "Apa saja project yang dikerjakan oleh Kemas?"
-        mysql_search(table="dosen", column="nama", search_term="Kemas")
+        Query: "What is the content of Kemas Rahmat's contract?"
+        mysql_search(table="dosen", column="nama", search_term="Kemas Rahmat")
+        mysql_fetch(table="employeecontract", IdDosen="{{STEP1_id}}")
+        faiss_fetch(faiss_id="{{STEP2_faiss_id}}")
+
+        Query: "Is Adiwijaya's project field aligned with their paper?"
+        mysql_search(table="dosen", column="nama", search_term="Adiwijaya")
         mysql_fetch(table="projectassignment", idDosen="{{STEP1_id}}")
         mysql_fetch(table="project", id="{{STEP2_projectID}}")
-        
-        Query: "Apakah ada dosen yang papernya berbeda dengan projectnya?"
-        mysql_fetch(table="dosen")
-        mysql_fetch(table="projectassignment", idDosen="{{STEP1_id}}")
-        mysql_fetch(table="project", id="{{STEP2_projectID}}")
-        wikibase_fetch(subject="{{STEP1_id}}")
-        
-        Query: "Berikan saya semua data kontrak pegawai."
-        mysql_fetch(table="employeecontract")
-        
-        Query: "Apa saja kerjasama Telkom dengan Indosat?"
-        faiss_search(query="kerjasama Telkom dengan Indosat")
+        wikibase_search(search_term="{{STEP1_nama}}")
+        wikibase_fetch(subject="{{STEP4_entity_id}}")
+
+        Query: "Which lecturer has written a paper about Semantic?"
+        faiss_search(query="paper about semantic")
+        wikibase_search(search_term="semantic")
+        wikibase_fetch(subject="{{STEP2_entity_id}}")
+        mysql_search(table="dosen", column="nama", search_term="{{STEP3_subject_label}}")
+
+        Query: "Who are the partners of Telkom University who have positive news?"
+        mongo_fetch(collection="news")
+        faiss_fetch(faiss_id="{{STEP1_faiss_id}}")
         """
         
         messages = [
@@ -147,68 +209,59 @@ class RAGModel:
             {"role": "user", "content": f"Query: {query}"}
         ]
         
-        dsl_command = self.llm_output(messages, maxtoken=150)
+        dsl_command = self.llm_output(messages, maxtoken=1000)
         print(f"[DEBUG DSL] Generated commands:\n{dsl_command}")
         return dsl_command
 
     def post_process_data(self, query, raw_context):
         """
         Stage 3: Post-Processing
-        Menggunakan skema langsung dari prompt_api.py sebagai referensi (Data Dictionary).
+        Diperkuat dengan FAISS Schema dan logika Identity Linking untuk data heterogen.
         """
-        pp_prompt = f"""You are a data processing agent.
-        Extract and format information from the retrieved JSON data.
+        pp_prompt = f"""You are a data synthesis agent.
+        Your goal is to write a Python f-string or list comprehension that organizes the retrieved data into a clear, readable format.
         
         ### DATA DICTIONARY / SCHEMAS ###
-        Use the following schemas to understand the keys, properties, or codes inside the JSON data (especially for Wikibase P-codes):
+        Use these schemas to understand the keys and relationships across different databases:
         
         {WIKIBASE_SCHEMA}
-        
         {MYSQL_SCHEMA}
-        
         {MONGODB_PARTNERSHIP_SCHEMA}
+        {FAISS_SCHEMA}
         
-        CRITICAL RULE:
-        If the user query requires SEMANTIC COMPARISON (e.g., comparing if a "Project Title" matches a "Paper Title" in meaning), DO NOT write python code to compare them. Python cannot understand meaning.
-        Instead, just use python to GROUP the data neatly by entity. 
-        
-        Example formatting for semantic queries:
-        "Lecturer: Kemas | Projects: [Title 1, Title 2] | Papers: [Paper 1, Paper 2]"
+        ### CORE EXTRACTION RULES ###
+        1. IDENTITY LINKING: Connect entities across different steps using their Names or IDs.
+        2. DATA MAPPING: Translate P-codes (P1, P2, etc.) and technical keys into human-readable labels.
+        3. UNSTRUCTURED CONTENT: If `document_content` from FAISS is present, extract the most relevant part or summarize its essence.
+        4. GROUPING: Neatly group all information by the primary entity (usually the Lecturer/Dosen).
+        5. NO SEMANTIC REASONING: Do not write python code to compare meanings. Simply list the attributes.
         
         Complete the Return part in this Python template:
         def solve(Data):
             return {{Return}}
             
-        Replace {{Return}} with your generated list comprehension or f-string. NO markdown blocks.
+        Replace {{Return}} with your generated logic. NO markdown blocks.
         
         Query: {query}
-        Data: {raw_context}
+        Context Data: {raw_context}
         Return: f\""""
         
-        script = self.llm_output([{"role": "user", "content": pp_prompt}], maxtoken=300)
+        script = self.llm_output([{"role": "user", "content": pp_prompt}], maxtoken=1000)
         script = script.replace('```python', '').replace('```', '').strip()
         print(f"[DEBUG Post-Process] Generated script: {script}")
         return script
 
     def generate_answer(self, query):
         """The Main ER-RAG Pipeline"""
-        
-        # 1. Generate the logical command (Includes Routing internally)
         dsl_command = self.generate_dsl_command(query)
-        
-        # 2. Execute the command
         context_str = execute_api_chain(dsl_command, self.api)
         
         if not context_str:
             print("[DEBUG] No DB Result. Proceeding without context...")
             return "I don't know based on the database."
             
-        # 3. Post-Process (Generate the Python execution script)
         f_string_script = self.post_process_data(query, context_str)
         
-        # 4. Final Answer Generation
-        # Instead of risking a raw eval() in a prototype, we pass the generated logic 
-        # back to the LLM to safely "execute" it in text.
         final_system_prompt = "You are a helpful assistant. Execute the logic described in the python f-string against the context to answer the user's question accurately."
         final_user_prompt = f"Context:\n{context_str}\n\nF-String Logic:\n{f_string_script}\n\nQuestion: {query}"
         
@@ -217,5 +270,4 @@ class RAGModel:
             {"role": "user", "content": final_user_prompt}
         ]
         
-        final_answer = self.llm_output(messages, maxtoken=300)
-        return final_answer
+        return self.llm_output(messages, maxtoken=2000)

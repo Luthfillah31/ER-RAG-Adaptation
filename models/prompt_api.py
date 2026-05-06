@@ -82,25 +82,32 @@ CREATE TABLE `projectassignment` (
 MONGODB_PARTNERSHIP_SCHEMA = """
 MONGODB PARTNERSHIP COLLECTION — `news`
 
-Each document represents a crawled news/article page about a Telkom University
-partnership event (MOU signing, collaboration announcement, etc.).
+Each document represents a crawled news/article page about a Telkom University partnership event (MOU signing, collaboration announcement, etc.).
 
 Fields used by this system:
   - partner_name  (str)  : Full name of the partner institution
                            e.g. "Universitas Borneo Tarakan"
   - title         (str)  : Page / article title
                            e.g. "Penandatanganan MOU Telkom University & ..."
-  - summary       (str)  : Short auto-generated summary of the article
-  - clean_text    (str)  : Full cleaned article body (used for FAISS content)
   - faiss_id      (int)  : ID into the shared FAISS vector index
   - partner_id    (int)  : Numeric ID for the partner institution
 
 Typical query patterns:
   - Find by partner name  → filter on partner_name  (regex / $regex)
-  - Find by keyword       → filter on title or summary ($regex)
   - Find by partner_id    → exact match on partner_id
   - Fetch docs by faiss_ids → filter on faiss_id: {$in: [...]}
   - use faiss for semantic search, then get partner_name for context using fiass_id
+
+  **CRITICAL** all partner_name is already affiliated with telkom university, so no need to check for affiliation in MongoDB
+for questions asking partnerships with tekkom university, we can directly search for partner_name in MongoDB without needing to check affiliation. 
+IMPORTANT: MongoDB has TWO query strategies:
+     a) "mongo first": Filter MongoDB for a specific partner/keyword,
+             then fetch FAISS content for those docs.
+             Use when: Question names a SPECIFIC partner institution or event.
+             Example: "What partnerships does Telkom have with Borneo?"
+     b) "faiss direct": Semantic FAISS search, then enrich with MongoDB metadata.
+             Use when: Question is about a TOPIC or THEME in partnership news.
+             Example: "What kind of research collaborations has Telkom announced?"
 """
 
 WIKIBASE_SCHEMA = """

@@ -1,11 +1,17 @@
 import re
 
 def execute_api_chain(dsl_command_block: str, api_client) -> str:
-    commands = [cmd.strip() for cmd in dsl_command_block.strip().split('\n') if cmd.strip()]
-    final_context = ""
+    # --- NEW: Extract only the content inside markdown code blocks ---
+    code_match = re.search(r"```(?:python)?\s*(.*?)\s*```", dsl_command_block, re.DOTALL)
+    if code_match:
+        dsl_command_block = code_match.group(1)
+        
+    # Proceed with splitting the commands, but ignore comments
+    raw_lines = [cmd.strip() for cmd in dsl_command_block.strip().split('\n') if cmd.strip()]
+    commands = [line for line in raw_lines if not line.startswith('#')] # Ignore Python comments
     
-    # UPGRADE ARSITEKTUR: Memori Global per Langkah
-    step_memory = {} 
+    final_context = ""
+    step_memory = {}
     
     for step_idx, dsl_command in enumerate(commands):
         step_num = step_idx + 1 # Index dimulai dari 1
